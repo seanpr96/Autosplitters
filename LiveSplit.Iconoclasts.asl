@@ -9,12 +9,19 @@ state("Iconoclasts")
     double roomID:      "Iconoclasts.exe", 0x9AE1BC, 0x2C, 0x1C, 0x28, 0x610;
     double dodger:      "Iconoclasts.exe", 0x9AE22C, 0x60, 0xEA8;
     double bossHPAlt:   "Iconoclasts.exe", 0x9AE418, 0x100, 0x34, 0x34, 0x28, 0x650;
+    
+    // Boss rush timer
+    double minutes:     "Iconoclasts.exe", 0x9AD558, 0x18, 0x34, 0x38, 0x28, 0x600;
+    double seconds:     "Iconoclasts.exe", 0x9AD55C, 0x108, 0x38, 0x34, 0x28, 0x600;
+    double centiseconds:"Iconoclasts.exe", 0x9AD55C, 0x34, 0x38, 0x28, 0x600;
 }
 
 startup
 {
+    settings.Add("Boss Rush Mode", false);
     settings.Add("Controller");
     settings.Add("Wrench");
+    settings.Add("Settlement 17");
     settings.Add("Kerthunk");
     settings.Add("Bombs");
     settings.Add("Kibuka");
@@ -62,6 +69,7 @@ start
     vars.controllerSplit = !settings["Controller"];
     
     vars.wrenchSplit = !settings["Wrench"];
+    vars.settlementSplit = !settings["Settlement 17"];
     vars.kerthunkSplit = !settings["Kerthunk"];
     vars.bombSplit = !settings["Bombs"];
     
@@ -132,11 +140,45 @@ start
     vars.birdState = 0;
     vars.birdTimer = 0;
     
-    return current.roomID == 253;
+    vars.bossRushTime = TimeSpan.FromSeconds(0);
+    
+    return current.roomID == 253 || (settings["Boss Rush Mode"] && current.roomID != 0 && old.roomID == 0);
+}
+
+gameTime
+{
+    if (settings["Boss Rush Mode"])
+    {
+        if (current.roomID == 0 || current.roomID == 24)
+        {
+            return vars.bossRushTime;
+        }
+        
+        vars.bossRushTime = TimeSpan.FromMilliseconds(current.minutes * 60 * 1000 + current.seconds * 1000 + current.centiseconds * 10);
+        
+        return vars.bossRushTime;
+    }
+    
+    return timer.CurrentTime.RealTime.Value;
+}
+
+reset
+{
+    if (settings["Boss Rush Mode"])
+    {
+        return current.roomID == 0;
+    }
+    
+    return false;
 }
 
 split
 {
+    if (settings["Boss Rush Mode"])
+    {
+        return current.roomID != old.roomID && old.roomID != 24;
+    }
+    
     if (current.roomID == 271 && current.bossHP == 700)
     {
         vars.controllerStarted = true;
@@ -155,6 +197,12 @@ split
     if (!vars.wrenchSplit && current.roomID == 311 && current.gotWrench == 1 && old.gotWrench == 0)
     {
         vars.wrenchSplit = true;
+        return true;
+    }
+    
+    if (!vars.settlementSplit && current.roomID == 1314 && old.roomID != 1314)
+    {
+        vars.settlementSplit = true;
         return true;
     }
     
